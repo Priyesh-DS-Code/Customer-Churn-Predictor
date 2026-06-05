@@ -169,3 +169,102 @@ with tab1:
 
             st.pyplot(fig)
 
+with tab2:
+    preprocessor = rf_model.named_steps["preprocessor"]
+    feature_names = preprocessor.get_feature_names_out()
+
+    rf_classifier = rf_model.named_steps["model"]
+    feature_importance = rf_classifier.feature_importances_
+
+    feat_imp = pd.DataFrame({
+        "feature": feature_names,
+        "importance": feature_importance
+    }).sort_values("importance", ascending=False)
+
+    top_features = feat_imp.head(15)
+    fig, ax = plt.subplots(figsize=(10,6))
+    ax.barh(top_features["feature"], top_features["importance"])
+    ax.invert_yaxis()
+    ax.set_title("Top Drivers of Customer Churn")
+    st.pyplot(fig)
+
+    st.subheader("SHAP Summary Plot")
+
+    sample_data = pd.concat([data]*50, ignore_index=True)
+
+    sample_data["tenure"] = np.random.randint(0, 72, size=50)
+    sample_data["MonthlyCharges"] = np.random.uniform(20, 120, size=50)
+    sample_data["TotalCharges"] = np.random.uniform(100, 5000, size=50)
+
+    X_sample_transformed = preprocessor.transform(sample_data)
+    feature_names = preprocessor.get_feature_names_out()
+
+    X_sample_df = pd.DataFrame(
+        X_sample_transformed,
+        columns=feature_names
+    )
+    explainer = shap.Explainer(rf_classifier)
+    shap_values = explainer(X_sample_df)
+
+    fig = plt.figure()
+    shap.plots.beeswarm(
+        shap_values[:, :, 1],
+        max_display=15,
+        show=False
+    )
+    st.pyplot(fig)
+
+    st.subheader("SHAP Feature Importance")
+
+    fig = plt.figure()
+    shap.plots.bar(
+        shap_values[:, :, 1],
+        max_display=15,
+        show=False
+    )
+    st.pyplot(fig)
+
+    performance_df = pd.DataFrame({
+    "Model": ["Logistic Regression", "Random Forest", "XGBoost"],
+    "ROC AUC": [0.86, 0.85, 0.85],
+    "F1 Score": [0.64, 0.65, 0.63],
+    "Precision": [0.52, 0.56, 0.55],
+    "Recall": [0.84, 0.78, 0.75]
+})
+
+    st.subheader("Model Performance")
+    st.dataframe(performance_df)
+
+    st.subheader("Business Insights")
+    st.markdown("""
+### Key Drivers of Customer Churn
+
+Based on the model analysis and feature importance results, several factors significantly influence customer churn:
+
+**1️⃣ Customer Tenure**
+- Customers with shorter tenure are much more likely to churn.
+- New customers have a higher probability of leaving compared to long-term subscribers.
+
+**2️⃣ Contract Type**
+- Customers on **month-to-month contracts** show the highest churn risk.
+- Long-term contracts such as **one-year or two-year agreements significantly reduce churn**.
+
+**3️⃣ Monthly Charges**
+- Higher monthly charges correlate with increased churn probability.
+- Customers paying more are more likely to switch providers if they perceive better value elsewhere.
+
+**4️⃣ Internet Service Type**
+- Customers using **fiber optic internet services** show relatively higher churn rates compared to DSL users.
+
+**5️⃣ Lack of Value-Added Services**
+- Customers without services like **online security, tech support, or device protection** are more likely to churn.
+
+---
+
+### Business Recommendations
+
+• Encourage **long-term contracts** through discounts or loyalty rewards.  
+• Offer **bundled services (security, tech support)** to increase customer retention.  
+• Provide **special retention offers for high-charge customers** to reduce churn risk.  
+• Focus retention campaigns on **new customers with low tenure**.
+""")
