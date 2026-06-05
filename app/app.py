@@ -80,15 +80,6 @@ with tab1:
     "TotalCharges":[total]
     })
 
-    X_transformed = preprocessor.transform(data)
-    feature_names = preprocessor.get_feature_names_out()
-    X_transformed_df = pd.DataFrame(
-        X_transformed,
-        columns=feature_names
-    )
-    explainer = shap.TreeExplainer(rf_classifier)
-
-
     if model_choice == "Logistic Regression":
         model = logistic_model
     elif model_choice == "Random Forest":
@@ -98,30 +89,83 @@ with tab1:
 
     if st.button("Predict Churn"):
 
+        # Prediction
         prob = model.predict_proba(data)[0][1]
 
-        st.metric("Churn Probability", f"{prob*100:.1f}%")
+        st.metric(
+            "Churn Probability",
+            f"{prob*100:.1f}%"
+        )
+
         st.progress(float(prob))
 
+        # Risk Category
         if prob > 0.6:
             st.error("High Risk Customer")
         elif prob > 0.3:
             st.warning("Medium Risk Customer")
         else:
             st.success("Low Risk Customer")
-        st.write(f"Model Used: **{model_choice}**")
-        st.subheader("Prediction Explanation (SHAP)")
+
+        st.write(
+            f"Model Used: **{model_choice}**"
+        )
+
+        # SHAP Section
+        st.subheader(
+            "Prediction Explanation (SHAP)"
+        )
 
         X_transformed = preprocessor.transform(data)
 
-        explainer = shap.Explainer(rf_classifier)
-        shap_values = explainer(X_transformed_df)
-
-        fig = plt.figure()
-
-        shap.plots.waterfall(
-            shap_values[0, :, 1],
-            show=False
+        feature_names = (
+            preprocessor.get_feature_names_out()
         )
-        st.pyplot(fig)
+
+        X_transformed_df = pd.DataFrame(
+            X_transformed,
+            columns=feature_names
+        )
+
+        # Select correct model for SHAP
+        if model_choice == "Random Forest":
+
+            explainer = shap.Explainer(
+                rf_model.named_steps["model"]
+            )
+
+        elif model_choice == "XGBoost":
+
+            explainer = shap.Explainer(
+                xgb_model.named_steps["model"]
+            )
+
+        else:
+
+            st.info(
+                "SHAP explanations are available for Random Forest and XGBoost models."
+            )
+
+            explainer = None
+
+        if explainer is not None:
+
+            shap_values = explainer(
+                X_transformed_df
+            )
+
+            fig = plt.figure()
+
+            if len(shap_values.values.shape) == 3:
+                shap.plots.waterfall(
+                    shap_values[0, :, 1],
+                    show=False
+                )
+            else:
+                shap.plots.waterfall(
+                    shap_values[0],
+                    show=False
+                )
+
+            st.pyplot(fig)
 
